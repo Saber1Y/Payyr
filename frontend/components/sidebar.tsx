@@ -2,12 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import {
   LayoutDashboard,
   Users,
   Wallet,
   Settings,
   DollarSign,
+  PanelRight,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,15 +40,36 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [isOpen, setIsOpen] = useState(true);
 
   return (
-    <div className="flex h-full w-64 flex-col bg-white border-r border-gray-200">
+    <div
+      className={cn(
+        "flex h-full flex-col bg-white border-r border-gray-200 transition-all duration-300 ease-in-out",
+        isOpen ? "w-64" : "w-20"
+      )}
+    >
       {/* Logo/Brand */}
-      <div className="flex h-16 items-center px-6">
+      <div className="flex h-16 items-center justify-between px-4">
         <div className="flex items-center space-x-2">
           <DollarSign className="h-8 w-8 text-indigo-600" />
-          <span className="text-xl font-bold text-gray-900">USDC Payroll</span>
+          {isOpen && (
+            <span className="text-xl font-bold text-gray-900">
+              USDC Payroll
+            </span>
+          )}
         </div>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+        >
+          {/* {isOpen ? (
+            <ChevronLeft className="h-5 w-5 text-gray-500" />
+          ) : (
+            <ChevronRight className="h-5 w-5 text-gray-500" />
+          )} */}
+          <PanelRight className="h-5 w-5 text-gray-500" />
+        </button>
       </div>
 
       {/* Navigation */}
@@ -55,22 +80,30 @@ export function Sidebar() {
             <Link
               key={item.name}
               href={item.href}
+              title={!isOpen ? item.name : undefined}
               className={cn(
-                "group flex items-center px-2 py-2 text-sm font-medium rounded-lg transition-colors",
+                "group flex items-center px-2 py-2 text-sm font-medium rounded-lg transition-colors relative",
                 isActive
                   ? "bg-indigo-50 text-indigo-700"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
+                !isOpen && "justify-center"
               )}
             >
               <item.icon
                 className={cn(
-                  "mr-3 h-5 w-5 flex-shrink-0",
+                  "h-5 w-8 shrink-0",
+                  isOpen && "mr-4",
                   isActive
                     ? "text-indigo-500"
                     : "text-gray-400 group-hover:text-gray-500"
                 )}
               />
-              {item.name}
+              {isOpen && <span className="truncate">{item.name}</span>}
+              {!isOpen && (
+                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                  {item.name}
+                </div>
+              )}
             </Link>
           );
         })}

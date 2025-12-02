@@ -49,6 +49,7 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 ## 🛠️ Tech Stack
 
 ### Frontend
+
 - **Next.js 14** - React framework with app router
 - **TypeScript** - Type-safe development
 - **TailwindCSS** - Utility-first styling
@@ -56,6 +57,7 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 - **Lucide React** - Beautiful icons
 
 ### Backend
+
 - **Foundry** - Smart contract development framework
 - **Solidity** - Smart contract programming language
 - **Arc Network** - Layer 2 blockchain for fast, cheap transactions
