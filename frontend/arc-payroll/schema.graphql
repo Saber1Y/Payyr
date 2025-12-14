@@ -1,83 +1,18 @@
-type EmergencyWithdraw @entity(immutable: true) {
-  id: Bytes!
-  admin: Bytes! # address
-  amount: BigInt! # uint256
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
+type Employee @entity(immutable: false) {
+  id: ID! # employee wallet address
+  wallet: Bytes!
+  totalPaid: BigInt! # cumulative total paid
+  lastPaidAt: BigInt
 }
 
-type Paused @entity(immutable: true) {
-  id: Bytes!
-  account: Bytes! # address
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
+type PayrollRun @entity(immutable: true) {
+  id: ID! # tx hash
+  timestamp: BigInt!
+  totalPaid: BigInt!
+  month: Int! # YYYYMM
 }
 
-type PayrollClaimed @entity(immutable: true) {
-  id: Bytes!
-  payrollId: BigInt! # uint256
-  employee: Bytes! # address
-  amount: BigInt! # uint256
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
-}
-
-type PayrollDeposited @entity(immutable: true) {
-  id: Bytes!
-  depositor: Bytes! # address
-  amount: BigInt! # uint256
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
-}
-
-type PayrollExecuted @entity(immutable: true) {
-  id: Bytes!
-  payrollId: BigInt! # uint256
-  totalAmount: BigInt! # uint256
-  employeeCount: BigInt! # uint256
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
-}
-
-type RoleAdminChanged @entity(immutable: true) {
-  id: Bytes!
-  role: Bytes! # bytes32
-  previousAdminRole: Bytes! # bytes32
-  newAdminRole: Bytes! # bytes32
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
-}
-
-type RoleGranted @entity(immutable: true) {
-  id: Bytes!
-  role: Bytes! # bytes32
-  account: Bytes! # address
-  sender: Bytes! # address
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
-}
-
-type RoleRevoked @entity(immutable: true) {
-  id: Bytes!
-  role: Bytes! # bytes32
-  account: Bytes! # address
-  sender: Bytes! # address
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
-}
-
-type Unpaused @entity(immutable: true) {
-  id: Bytes!
-  account: Bytes! # address
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
+type MonthlyPayroll @entity(immutable: false) {
+  id: ID! # YYYYMM
+  totalCost: BigInt!
 }

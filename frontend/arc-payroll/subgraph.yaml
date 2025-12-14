@@ -37,7 +37,7 @@ dataSources:
           handler: handlePayrollClaimed
         - event: PayrollDeposited(indexed address,uint256)
           handler: handlePayrollDeposited
-        - event: PayrollExecuted(indexed uint256,uint256,uint256)
+        - event: PayrollExecuted(address[],uint256[],uint256)
           handler: handlePayrollExecuted
         - event: RoleAdminChanged(indexed bytes32,indexed bytes32,indexed bytes32)
           handler: handleRoleAdminChanged
