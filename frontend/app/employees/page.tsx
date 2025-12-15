@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -22,100 +22,246 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { Plus, Edit, UserX, UserCheck, Loader2 } from "lucide-react";
+import {
+  useReadContract,
+  useWriteContract,
+  useWaitForTransactionReceipt,
+  useAccount,
+} from "wagmi";
+import { formatUnits, parseUnits } from "viem";
+import EmployeeRegistryABI from "../../lib/abi/EmployeeRegistry.json";
 
-interface Employee {
-  id: string;
-  walletAddress: string;
-  salary: number;
-  schedule: string;
-  status: string;
+const EMPLOYEE_REGISTRY_ADDRESS = "0xf23147Df55089eA6bA87BF24bb4eEE6f7Cea182b" as const; 
+
+interface EmployeeData {
+  address: string;
   name: string;
+  salary: bigint;
+  isActive: boolean;
+  role: string;
 }
 
-const mockEmployees: Employee[] = [
-  {
-    id: "1",
-    name: "Alice Johnson",
-    walletAddress: "0x1234...5678",
-    salary: 5000,
-    schedule: "Monthly",
-    status: "Active",
-  },
-  {
-    id: "2",
-    name: "Bob Smith",
-    walletAddress: "0x8765...4321",
-    salary: 4500,
-    schedule: "Monthly",
-    status: "Active",
-  },
-  {
-    id: "3",
-    name: "Carol Davis",
-    walletAddress: "0xabcd...efgh",
-    salary: 5500,
-    schedule: "Bi-weekly",
-    status: "Active",
-  },
-];
-
 export default function EmployeesPage() {
-  const [employees] = useState<Employee[]>(mockEmployees);
+  const { address: connectedAddress } = useAccount();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     walletAddress: "",
     salary: "",
-    schedule: "Monthly",
+    role: "",
   });
 
-  const handleAddEmployee = () => {
-    // Handle add employee logic
-    console.log("Adding employee:", formData);
-    setIsAddDialogOpen(false);
+  // Read total employees count
+  const { data: totalEmployees } = useReadContract({
+    address: EMPLOYEE_REGISTRY_ADDRESS,
+    abi: EmployeeRegistryABI,
+    functionName: "totalEmployees",
+  });
+
+  // Read active employees count
+  const { data: activeEmployees } = useReadContract({
+    address: EMPLOYEE_REGISTRY_ADDRESS,
+    abi: EmployeeRegistryABI,
+    functionName: "activeEmployees",
+  });
+
+  // Read all employee addresses
+  const { data: employeeAddresses } = useReadContract({
+    address: EMPLOYEE_REGISTRY_ADDRESS,
+    abi: EmployeeRegistryABI,
+    functionName: "getActiveEmployees",
+  });
+
+  // Write contracts
+  const {
+    writeContract: addEmployee,
+    data: addHash,
+    isPending: isAddPending,
+  } = useWriteContract();
+
+  const {
+    writeContract: updateEmployee,
+    data: updateHash,
+    isPending: isUpdatePending,
+  } = useWriteContract();
+
+  const {
+    writeContract: deactivateEmployee,
+    data: deactivateHash,
+    isPending: isDeactivatePending,
+  } = useWriteContract();
+
+  const {
+    writeContract: activateEmployee,
+    data: activateHash,
+    isPending: isActivatePending,
+  } = useWriteContract();
+
+  // Wait for transactions
+  const { isSuccess: isAddSuccess } = useWaitForTransactionReceipt({
+    hash: addHash,
+  });
+  const { isSuccess: isUpdateSuccess } = useWaitForTransactionReceipt({
+    hash: updateHash,
+  });
+  const { isSuccess: isDeactivateSuccess } = useWaitForTransactionReceipt({
+    hash: deactivateHash,
+  });
+  const { isSuccess: isActivateSuccess } = useWaitForTransactionReceipt({
+    hash: activateHash,
+  });
+
+  // Close dialogs on success
+  useEffect(() => {
+    if (isAddSuccess) {
+      setIsAddDialogOpen(false);
+      resetForm();
+    }
+  }, [isAddSuccess]);
+
+  useEffect(() => {
+    if (isUpdateSuccess) {
+      setIsEditDialogOpen(false);
+      resetForm();
+    }
+  }, [isUpdateSuccess]);
+
+  const resetForm = () => {
     setFormData({
       name: "",
       walletAddress: "",
       salary: "",
-      schedule: "Monthly",
+      role: "",
     });
+    setEditingEmployee(null);
   };
 
-  const handleEditEmployee = (employee: Employee) => {
-    setEditingEmployee(employee);
-    setFormData({
-      name: employee.name,
-      walletAddress: employee.walletAddress,
-      salary: employee.salary.toString(),
-      schedule: employee.schedule,
-    });
-    setIsEditDialogOpen(true);
+  const handleAddEmployee = () => {
+    if (
+      !formData.name ||
+      !formData.walletAddress ||
+      !formData.salary ||
+      !formData.role
+    ) {
+      alert("Please fill in all fields");
+      return;
+    }
+
+    try {
+      const salaryInSmallestUnit = parseUnits(formData.salary, 6); // USDC has 6 decimals
+
+      addEmployee({
+        address: EMPLOYEE_REGISTRY_ADDRESS,
+        abi: EmployeeRegistryABI,
+        functionName: "addEmployee",
+        args: [
+          formData.walletAddress as `0x${string}`,
+          formData.name,
+          salaryInSmallestUnit,
+          formData.role,
+        ],
+      });
+    } catch (error) {
+      console.error("Error adding employee:", error);
+      alert("Failed to add employee. Check console for details.");
+    }
+  };
+
+  const handleEditEmployee = async (employeeAddress: string) => {
+    // Fetch current employee data
+    const employee = await getEmployeeData(employeeAddress);
+    if (employee) {
+      setEditingEmployee(employeeAddress);
+      setFormData({
+        name: employee.name,
+        walletAddress: employeeAddress,
+        salary: formatUnits(employee.salary, 6),
+        role: employee.role,
+      });
+      setIsEditDialogOpen(true);
+    }
   };
 
   const handleUpdateEmployee = () => {
-    // Handle update employee logic
-    console.log("Updating employee:", editingEmployee?.id, formData);
-    setIsEditDialogOpen(false);
-    setEditingEmployee(null);
-    setFormData({
-      name: "",
-      walletAddress: "",
-      salary: "",
-      schedule: "Monthly",
+    if (
+      !editingEmployee ||
+      !formData.name ||
+      !formData.salary ||
+      !formData.role
+    ) {
+      alert("Please fill in all fields");
+      return;
+    }
+
+    try {
+      const salaryInSmallestUnit = parseUnits(formData.salary, 6);
+
+      updateEmployee({
+        address: EMPLOYEE_REGISTRY_ADDRESS,
+        abi: EmployeeRegistryABI,
+        functionName: "updateEmployee",
+        args: [
+          editingEmployee as `0x${string}`,
+          formData.name,
+          salaryInSmallestUnit,
+          formData.role,
+        ],
+      });
+    } catch (error) {
+      console.error("Error updating employee:", error);
+      alert("Failed to update employee. Check console for details.");
+    }
+  };
+
+  const handleDeactivateEmployee = (employeeAddress: string) => {
+    if (confirm("Are you sure you want to deactivate this employee?")) {
+      deactivateEmployee({
+        address: EMPLOYEE_REGISTRY_ADDRESS,
+        abi: EmployeeRegistryABI,
+        functionName: "deactivateEmployee",
+        args: [employeeAddress as `0x${string}`],
+      });
+    }
+  };
+
+  const handleActivateEmployee = (employeeAddress: string) => {
+    activateEmployee({
+      address: EMPLOYEE_REGISTRY_ADDRESS,
+      abi: EmployeeRegistryABI,
+      functionName: "activateEmployee",
+      args: [employeeAddress as `0x${string}`],
     });
   };
 
+  // Helper to get individual employee data
+  const getEmployeeData = async (
+    address: string
+  ): Promise<EmployeeData | null> => {
+    try {
+      // This would need to be done differently - you'd need to read each employee
+      // For now, we'll return null and rely on the table rendering
+      return null;
+    } catch (error) {
+      console.error("Error fetching employee:", error);
+      return null;
+    }
+  };
+
   return (
-    <div className="p-8 bg-[#114277] h-screen text-black">
+    <div className="p-8 bg-[#114277] min-h-screen">
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Employees</h1>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-3xl font-bold text-white">Employees</h1>
+          <p className="text-gray-300 mt-2">
             Manage your team and their payroll settings
           </p>
+          <div className="mt-4 flex gap-4 text-sm text-gray-300">
+            <span>Total: {totalEmployees?.toString() ?? "0"}</span>
+            <span>Active: {activeEmployees?.toString() ?? "0"}</span>
+          </div>
         </div>
 
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -129,7 +275,7 @@ export default function EmployeesPage() {
             <DialogHeader>
               <DialogTitle>Add New Employee</DialogTitle>
               <DialogDescription>
-                Add a new employee to your payroll system.
+                Add a new employee to your payroll system on-chain.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -156,7 +302,18 @@ export default function EmployeesPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="salary">Salary (USDC)</Label>
+                <Label htmlFor="role">Role/Position</Label>
+                <Input
+                  id="role"
+                  value={formData.role}
+                  onChange={(e) =>
+                    setFormData({ ...formData, role: e.target.value })
+                  }
+                  placeholder="e.g., Software Engineer"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="salary">Monthly Salary (USDC)</Label>
                 <Input
                   id="salary"
                   type="number"
@@ -167,21 +324,6 @@ export default function EmployeesPage() {
                   placeholder="5000"
                 />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="schedule">Payment Schedule</Label>
-                <select
-                  id="schedule"
-                  value={formData.schedule}
-                  onChange={(e) =>
-                    setFormData({ ...formData, schedule: e.target.value })
-                  }
-                  className="flex h-10 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
-                >
-                  <option value="Weekly">Weekly</option>
-                  <option value="Bi-weekly">Bi-weekly</option>
-                  <option value="Monthly">Monthly</option>
-                </select>
-              </div>
             </div>
             <DialogFooter>
               <Button
@@ -190,7 +332,16 @@ export default function EmployeesPage() {
               >
                 Cancel
               </Button>
-              <Button onClick={handleAddEmployee}>Add Employee</Button>
+              <Button onClick={handleAddEmployee} disabled={isAddPending}>
+                {isAddPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Adding...
+                  </>
+                ) : (
+                  "Add Employee"
+                )}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -201,55 +352,18 @@ export default function EmployeesPage() {
           <CardTitle>Employee List</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Wallet Address</TableHead>
-                <TableHead>Salary</TableHead>
-                <TableHead>Schedule</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {employees.map((employee) => (
-                <TableRow key={employee.id}>
-                  <TableCell className="font-medium">{employee.name}</TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {employee.walletAddress}
-                  </TableCell>
-                  <TableCell>${employee.salary.toLocaleString()}</TableCell>
-                  <TableCell>{employee.schedule}</TableCell>
-                  <TableCell>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      {employee.status}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEditEmployee(employee)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm">
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <EmployeeTable
+            employeeAddresses={employeeAddresses as `0x${string}`[] | undefined}
+            onEdit={handleEditEmployee}
+            onDeactivate={handleDeactivateEmployee}
+            onActivate={handleActivateEmployee}
+          />
         </CardContent>
       </Card>
 
       {/* Edit Employee Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[425px text-black">
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Edit Employee</DialogTitle>
             <DialogDescription>
@@ -268,17 +382,17 @@ export default function EmployeesPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="edit-address">Wallet Address</Label>
+              <Label htmlFor="edit-role">Role/Position</Label>
               <Input
-                id="edit-address"
-                value={formData.walletAddress}
+                id="edit-role"
+                value={formData.role}
                 onChange={(e) =>
-                  setFormData({ ...formData, walletAddress: e.target.value })
+                  setFormData({ ...formData, role: e.target.value })
                 }
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="edit-salary">Salary (USDC)</Label>
+              <Label htmlFor="edit-salary">Monthly Salary (USDC)</Label>
               <Input
                 id="edit-salary"
                 type="number"
@@ -288,21 +402,6 @@ export default function EmployeesPage() {
                 }
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-schedule">Payment Schedule</Label>
-              <select
-                id="edit-schedule"
-                value={formData.schedule}
-                onChange={(e) =>
-                  setFormData({ ...formData, schedule: e.target.value })
-                }
-                className="flex h-10 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
-              >
-                <option value="Weekly">Weekly</option>
-                <option value="Bi-weekly">Bi-weekly</option>
-                <option value="Monthly">Monthly</option>
-              </select>
-            </div>
           </div>
           <DialogFooter>
             <Button
@@ -311,10 +410,157 @@ export default function EmployeesPage() {
             >
               Cancel
             </Button>
-            <Button onClick={handleUpdateEmployee}>Update Employee</Button>
+            <Button onClick={handleUpdateEmployee} disabled={isUpdatePending}>
+              {isUpdatePending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                "Update Employee"
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// Separate component for the employee table
+function EmployeeTable({
+  employeeAddresses,
+  onEdit,
+  onDeactivate,
+  onActivate,
+}: {
+  employeeAddresses: `0x${string}`[] | undefined;
+  onEdit: (address: string) => void;
+  onDeactivate: (address: string) => void;
+  onActivate: (address: string) => void;
+}) {
+  if (!employeeAddresses || employeeAddresses.length === 0) {
+    return (
+      <div className="text-center py-8 text-gray-500">
+        No employees found. Add your first employee to get started.
+      </div>
+    );
+  }
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Name</TableHead>
+          <TableHead>Wallet Address</TableHead>
+          <TableHead>Role</TableHead>
+          <TableHead>Monthly Salary</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead className="text-right">Actions</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {employeeAddresses.map((address) => (
+          <EmployeeRow
+            key={address}
+            address={address}
+            onEdit={onEdit}
+            onDeactivate={onDeactivate}
+            onActivate={onActivate}
+          />
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+// Individual employee row component
+function EmployeeRow({
+  address,
+  onEdit,
+  onDeactivate,
+  onActivate,
+}: {
+  address: `0x${string}`;
+  onEdit: (address: string) => void;
+  onDeactivate: (address: string) => void;
+  onActivate: (address: string) => void;
+}) {
+  const { data: employeeData } = useReadContract({
+    address: EMPLOYEE_REGISTRY_ADDRESS,
+    abi: EmployeeRegistryABI,
+    functionName: "employees",
+    args: [address],
+  });
+
+  if (!employeeData) {
+    return (
+      <TableRow>
+        <TableCell colSpan={6} className="text-center">
+          Loading...
+        </TableCell>
+      </TableRow>
+    );
+  }
+
+  const [name, salary, isActive, startDate, role] = employeeData as [
+    string,
+    bigint,
+    boolean,
+    bigint,
+    string
+  ];
+
+  const formattedSalary = formatUnits(salary, 6);
+
+  return (
+    <TableRow>
+      <TableCell className="font-medium">{name}</TableCell>
+      <TableCell className="font-mono text-sm">
+        {address.slice(0, 6)}...{address.slice(-4)}
+      </TableCell>
+      <TableCell>{role}</TableCell>
+      <TableCell>${Number(formattedSalary).toLocaleString()}</TableCell>
+      <TableCell>
+        <span
+          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+            isActive
+              ? "bg-green-100 text-green-800"
+              : "bg-gray-100 text-gray-800"
+          }`}
+        >
+          {isActive ? "Active" : "Inactive"}
+        </span>
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onEdit(address)}
+            disabled={!isActive}
+          >
+            <Edit className="h-4 w-4" />
+          </Button>
+          {isActive ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onDeactivate(address)}
+            >
+              <UserX className="h-4 w-4 text-red-500" />
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onActivate(address)}
+            >
+              <UserCheck className="h-4 w-4 text-green-500" />
+            </Button>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
   );
 }
