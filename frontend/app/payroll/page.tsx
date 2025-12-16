@@ -118,7 +118,7 @@ export default function PayrollPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-gray-900">
-              ${contractBalance.toLocaleString()}.00
+              ${balance.data?.formatted?.toLocaleString()}.00
             </div>
             <p className="text-xs text-gray-500 mt-1">Available for payroll</p>
           </CardContent>
