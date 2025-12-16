@@ -30,6 +30,9 @@ import {
   ExternalLink,
 } from "lucide-react";
 
+import { useConnection } from "wagmi";
+import { useBalance } from "wagmi";
+
 interface PayrollHistory {
   id: string;
   date: string;
@@ -71,6 +74,13 @@ export default function PayrollPage() {
   const [isPayAllDialogOpen, setIsPayAllDialogOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
   const [payrollHistory] = useState<PayrollHistory[]>(mockPayrollHistory);
+
+  const { address } = useConnection();
+
+  const  balance  = useBalance({
+    address: address,
+    // token: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
+  });
 
   // Mock data
   const contractBalance = 125430;
