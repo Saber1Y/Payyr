@@ -7,7 +7,6 @@ import {
   Calendar,
   TrendingUp,
   ArrowUpRight,
-  ArrowDownRight,
 } from "lucide-react";
 import { useReadContract } from "wagmi";
 import { formatUnits } from "viem";
@@ -19,28 +18,28 @@ export default function DashboardPage() {
   // Get contract balance
   const { data: balance } = useReadContract({
     address: CONTRACT_ADDRESS,
-    abi: PayrollContractABi,
+    abi: PayrollContractABi.abi,
     functionName: "getBalance",
   });
 
   // Get current payroll ID
   const { data: currentPayrollId } = useReadContract({
     address: CONTRACT_ADDRESS,
-    abi: PayrollContractABi,
+    abi: PayrollContractABi.abi,
     functionName: "currentPayrollId",
   });
 
   // Get total payroll runs
   const { data: totalPayrollRuns } = useReadContract({
     address: CONTRACT_ADDRESS,
-    abi: PayrollContractABi,
+    abi: PayrollContractABi.abi,
     functionName: "totalPayrollRuns",
   });
 
   // Get the last 3 payroll runs
   const { data: payroll1 } = useReadContract({
     address: CONTRACT_ADDRESS,
-    abi: PayrollContractABi,
+    abi: PayrollContractABi.abi,
     functionName: "payrollRuns",
     args: [currentPayrollId as bigint],
     query: {
@@ -50,7 +49,7 @@ export default function DashboardPage() {
 
   const { data: payroll2 } = useReadContract({
     address: CONTRACT_ADDRESS,
-    abi: PayrollContractABi,
+    abi: PayrollContractABi.abi,
     functionName: "payrollRuns",
     args: [currentPayrollId ? (currentPayrollId as bigint) - 1n : 0n],
     query: {
@@ -60,7 +59,7 @@ export default function DashboardPage() {
 
   const { data: payroll3 } = useReadContract({
     address: CONTRACT_ADDRESS,
-    abi: PayrollContractABi,
+    abi: PayrollContractABi.abi,
     functionName: "payrollRuns",
     args: [currentPayrollId ? (currentPayrollId as bigint) - 2n : 0n],
     query: {
@@ -226,15 +225,15 @@ export default function DashboardPage() {
                     <div className="text-right">
                       <span className="font-medium text-red-600">
                         -$
-                        {payroll.amount.toLocaleString("en-US", {
+                        {payroll?.amount.toLocaleString("en-US", {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
                         })}
                       </span>
                       <p className="text-xs text-gray-500">
-                        {payroll.employeeCount} employees
+                        {payroll?.employeeCount} employees
                       </p>
-                      {payroll.isCompleted && (
+                      {payroll?.isCompleted && (
                         <p className="text-xs text-green-600">✓ Completed</p>
                       )}
                     </div>

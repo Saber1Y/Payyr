@@ -27,12 +27,12 @@ import {
   useReadContract,
   useWriteContract,
   useWaitForTransactionReceipt,
-  useAccount,
 } from "wagmi";
 import { formatUnits, parseUnits } from "viem";
 import EmployeeRegistryABI from "../../lib/abi/EmployeeRegistry.json";
 
-const EMPLOYEE_REGISTRY_ADDRESS = "0xf23147Df55089eA6bA87BF24bb4eEE6f7Cea182b" as const; 
+const EMPLOYEE_REGISTRY_ADDRESS =
+  "0xf23147Df55089eA6bA87BF24bb4eEE6f7Cea182b" as const;
 
 interface EmployeeData {
   address: string;
@@ -43,8 +43,6 @@ interface EmployeeData {
 }
 
 export default function EmployeesPage() {
-
-  // const { address: connectedAddress } = useAccount();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
@@ -55,29 +53,28 @@ export default function EmployeesPage() {
     role: "",
   });
 
+
+
   // Read calls
   const { data: totalEmployees } = useReadContract({
     address: EMPLOYEE_REGISTRY_ADDRESS,
-    abi: EmployeeRegistryABI,
+    abi: EmployeeRegistryABI.abi,
     functionName: "totalEmployees",
   });
 
-
   const { data: activeEmployees } = useReadContract({
     address: EMPLOYEE_REGISTRY_ADDRESS,
-    abi: EmployeeRegistryABI,
+    abi: EmployeeRegistryABI.abi,
     functionName: "activeEmployees",
   });
 
- 
   const { data: employeeAddresses } = useReadContract({
     address: EMPLOYEE_REGISTRY_ADDRESS,
-    abi: EmployeeRegistryABI,
+    abi: EmployeeRegistryABI.abi,
     functionName: "getActiveEmployees",
   });
 
   // Write contracts
-
 
   const {
     mutate: addEmployee,
@@ -117,21 +114,6 @@ export default function EmployeesPage() {
     hash: activateHash,
   });
 
-  // Close dialogs on success
-  useEffect(() => {
-    if (isAddSuccess) {
-      setIsAddDialogOpen(false);
-      resetForm();
-    }
-  }, [isAddSuccess]);
-
-  useEffect(() => {
-    if (isUpdateSuccess) {
-      setIsEditDialogOpen(false);
-      resetForm();
-    }
-  }, [isUpdateSuccess]);
-
   const resetForm = () => {
     setFormData({
       name: "",
@@ -141,6 +123,21 @@ export default function EmployeesPage() {
     });
     setEditingEmployee(null);
   };
+
+  // Close dialogs on success
+  useEffect(() => {
+    if (isAddSuccess) {
+      // setIsAddDialogOpen(false);
+      resetForm();
+    }
+  }, [isAddSuccess]);
+
+  useEffect(() => {
+    if (isUpdateSuccess) {
+      // setIsEditDialogOpen(false);
+      resetForm();
+    }
+  }, [isUpdateSuccess]);
 
   const handleAddEmployee = () => {
     if (
@@ -158,7 +155,7 @@ export default function EmployeesPage() {
 
       addEmployee({
         address: EMPLOYEE_REGISTRY_ADDRESS,
-        abi: EmployeeRegistryABI,
+        abi: EmployeeRegistryABI.abi,
         functionName: "addEmployee",
         args: [
           formData.walletAddress as `0x${string}`,
@@ -204,7 +201,7 @@ export default function EmployeesPage() {
 
       updateEmployee({
         address: EMPLOYEE_REGISTRY_ADDRESS,
-        abi: EmployeeRegistryABI,
+        abi: EmployeeRegistryABI.abi,
         functionName: "updateEmployee",
         args: [
           editingEmployee as `0x${string}`,
@@ -223,7 +220,7 @@ export default function EmployeesPage() {
     if (confirm("Are you sure you want to deactivate this employee?")) {
       deactivateEmployee({
         address: EMPLOYEE_REGISTRY_ADDRESS,
-        abi: EmployeeRegistryABI,
+        abi: EmployeeRegistryABI.abi,
         functionName: "deactivateEmployee",
         args: [employeeAddress as `0x${string}`],
       });
@@ -233,7 +230,7 @@ export default function EmployeesPage() {
   const handleActivateEmployee = (employeeAddress: string) => {
     activateEmployee({
       address: EMPLOYEE_REGISTRY_ADDRESS,
-      abi: EmployeeRegistryABI,
+      abi: EmployeeRegistryABI.abi,
       functionName: "activateEmployee",
       args: [employeeAddress as `0x${string}`],
     });
