@@ -43,7 +43,8 @@ interface EmployeeData {
 }
 
 export default function EmployeesPage() {
-  const { address: connectedAddress } = useAccount();
+
+  // const { address: connectedAddress } = useAccount();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
@@ -54,21 +55,21 @@ export default function EmployeesPage() {
     role: "",
   });
 
-  // Read total employees count
+  // Read calls
   const { data: totalEmployees } = useReadContract({
     address: EMPLOYEE_REGISTRY_ADDRESS,
     abi: EmployeeRegistryABI,
     functionName: "totalEmployees",
   });
 
-  // Read active employees count
+
   const { data: activeEmployees } = useReadContract({
     address: EMPLOYEE_REGISTRY_ADDRESS,
     abi: EmployeeRegistryABI,
     functionName: "activeEmployees",
   });
 
-  // Read all employee addresses
+ 
   const { data: employeeAddresses } = useReadContract({
     address: EMPLOYEE_REGISTRY_ADDRESS,
     abi: EmployeeRegistryABI,
@@ -76,26 +77,28 @@ export default function EmployeesPage() {
   });
 
   // Write contracts
+
+
   const {
-    writeContract: addEmployee,
+    mutate: addEmployee,
     data: addHash,
     isPending: isAddPending,
   } = useWriteContract();
 
   const {
-    writeContract: updateEmployee,
+    mutate: updateEmployee,
     data: updateHash,
     isPending: isUpdatePending,
   } = useWriteContract();
 
   const {
-    writeContract: deactivateEmployee,
+    mutate: deactivateEmployee,
     data: deactivateHash,
     isPending: isDeactivatePending,
   } = useWriteContract();
 
   const {
-    writeContract: activateEmployee,
+    mutate: activateEmployee,
     data: activateHash,
     isPending: isActivatePending,
   } = useWriteContract();
