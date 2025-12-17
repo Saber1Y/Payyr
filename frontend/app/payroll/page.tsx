@@ -30,8 +30,10 @@ import {
   ExternalLink,
 } from "lucide-react";
 
-import { useConnection, useReadContract } from "wagmi";
+import { useConnection, useReadContract, useWriteContract } from "wagmi";
 import { useBalance } from "wagmi";
+import formatBalance from "@/utils/utils";
+import USDCABI from "../../lib/abi/USDC.json";
 
 //abi imports
 import PayrollContractABi from "../../lib/abi/PayrollManager.json";
@@ -85,13 +87,31 @@ export default function PayrollPage() {
   const [isDepositDialogOpen, setIsDepositDialogOpen] = useState(false);
   const [isPayAllDialogOpen, setIsPayAllDialogOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
+  const [step, setStep] = useState<"closed" | "approve" | "deposit">("closed");
   const [payrollHistory] = useState<PayrollHistory[]>(mockPayrollHistory);
 
   const { address } = useConnection();
 
-  const balance = useBalance({
-    address: address,
-    // token: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
+  // const balance = useBalance({
+  //   address: address,
+  //   // token: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
+  // });
+
+  const { data: userBalance } = useReadContract({
+    address: ARC_USDC_ADDR,
+    abi: USDCABI,
+    functionName: "balanceOf",
+    args: [address as `0x${string}`],
+    query: {
+      enabled: !!address,
+    },
+  });
+
+  const { data: contractBalance } = useReadContract({
+    address: PAYROLL_REGISTRY_ADDRESS,
+    abi: PayrollContractABi.abi,
+    functionName: "getBalance",
+    // args: [ARC_USDC_ADDR],
   });
 
   const { data: currentPayrollId } = useReadContract({
@@ -112,12 +132,43 @@ export default function PayrollPage() {
     functionName: "activeEmployees",
   });
 
-  // Mock data
-  const contractBalance = 125430;
-  const requiredForNextPayroll = 85200;
-  const hasSufficientFunds = contractBalance >= requiredForNextPayroll;
+  // write hooks
+
+  const { mutate: grantApproval, isPending } = useWriteContract();
+
+  // const contractBalance = 125430;
+  // const requiredForNextPayroll = 85200;
+  const formatedMonthlyBalance = formatBalance(monthlyPayrollCost);
+  const formatedUserBalance = formatBalance(userBalance);
+  const formatedContractBalance = formatBalance(contractBalance);
+
+  const hasSufficientFunds = formatedContractBalance >= formatedMonthlyBalance;
+
+  //grant permission to the payroll contract to spend USDC on behalf of the user
+  const handleApproval = () => {
+    if (!depositAmount || Number(depositAmount) <= 0) {
+      return alert("Please input Amount");
+    }
+
+    const parsedAmount = parseInt(depositAmount, 10);
+
+    grantApproval({
+      address: ARC_USDC_ADDR,
+      abi: USDCABI,
+      functionName: "approve",
+      args: [PAYROLL_REGISTRY_ADDRESS, BigInt(parsedAmount * 1_000_000)],
+    });
+
+    setStep("deposit");
+  };
 
   const handleDeposit = () => {
+    if (!depositAmount || Number(depositAmount) <= 0) {
+      return alert("Please input Amount");
+    }
+
+    const parsedAmount = parseInt(depositAmount, 10);
+
     console.log("Depositing:", depositAmount);
     setIsDepositDialogOpen(false);
     setDepositAmount("");
