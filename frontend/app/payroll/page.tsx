@@ -30,8 +30,20 @@ import {
   ExternalLink,
 } from "lucide-react";
 
-import { useConnection } from "wagmi";
+import { useConnection, useReadContract } from "wagmi";
 import { useBalance } from "wagmi";
+
+//abi imports
+import PayrollContractABi from "../../lib/abi/PayrollManager.json";
+import EmployeeRegistryABI from "../../lib/abi/EmployeeRegistry.json";
+
+const EMPLOYEE_REGISTRY_ADDRESS =
+  "0xf23147Df55089eA6bA87BF24bb4eEE6f7Cea182b" as const;
+
+const PAYROLL_REGISTRY_ADDRESS =
+  "0x03A71968491d55603FFe1b11A9e23eF013f75bCF" as const;
+
+const ARC_USDC_ADDR = "0x3600000000000000000000000000000000000000" as const;
 
 interface PayrollHistory {
   id: string;
@@ -77,9 +89,27 @@ export default function PayrollPage() {
 
   const { address } = useConnection();
 
-  const  balance  = useBalance({
+  const balance = useBalance({
     address: address,
     // token: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
+  });
+
+  const { data: currentPayrollId } = useReadContract({
+    address: PAYROLL_REGISTRY_ADDRESS,
+    abi: PayrollContractABi.abi,
+    functionName: "currentPayrollId",
+  });
+
+  const { data: monthlyPayrollCost } = useReadContract({
+    address: EMPLOYEE_REGISTRY_ADDRESS,
+    abi: EmployeeRegistryABI.abi,
+    functionName: "monthlyPayrollCost",
+  });
+
+  const { data: activeEmployees } = useReadContract({
+    address: EMPLOYEE_REGISTRY_ADDRESS,
+    abi: EmployeeRegistryABI.abi,
+    functionName: "activeEmployees",
   });
 
   // Mock data

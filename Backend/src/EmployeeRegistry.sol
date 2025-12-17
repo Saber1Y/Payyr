@@ -171,6 +171,7 @@ contract EmployeeRegistry is AccessControl {
      * @dev Get total monthly payroll cost
      * @return Total monthly salary for all active employees
      */
+    
     function getTotalMonthlyCost() external view returns (uint256) {
         uint256 totalCost = 0;
         
