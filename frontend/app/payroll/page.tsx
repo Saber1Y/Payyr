@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 
 import { useConnection, useReadContract, useWriteContract } from "wagmi";
-import { useBalance } from "wagmi";
+// import { useBalance } from "wagmi";
 import formatBalance from "@/utils/utils";
 import USDCABI from "../../lib/abi/USDC.json";
 
@@ -169,12 +169,25 @@ export default function PayrollPage() {
 
     const parsedAmount = parseInt(depositAmount, 10);
 
+    grantApproval({
+      address: PAYROLL_REGISTRY_ADDRESS,
+      abi: PayrollContractABi.abi,
+      functionName: "depositPayroll",
+      args: [parsedAmount],
+    });
+
     console.log("Depositing:", depositAmount);
+    setStep("closed");
     setIsDepositDialogOpen(false);
     setDepositAmount("");
   };
 
   const handlePayAll = () => {
+    grantApproval({
+      address: PAYROLL_REGISTRY_ADDRESS,
+      abi: PayrollContractABi.abi,
+      functionName: "executePayroll",
+    });
     console.log("Processing payroll for all employees");
     setIsPayAllDialogOpen(false);
   };
@@ -199,7 +212,7 @@ export default function PayrollPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-gray-900">
-              ${balance.data?.formatted?.toLocaleString()}.00
+              ${formatedContractBalance.toLocaleString()}.00
             </div>
             <p className="text-xs text-gray-500 mt-1">Available for payroll</p>
           </CardContent>
@@ -208,13 +221,13 @@ export default function PayrollPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
-              Required for Next Payroll
+              Your USDC Balance
             </CardTitle>
             <Send className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-gray-900">
-              ${requiredForNextPayroll.toLocaleString()}.00
+              ${formatedUserBalance.toLocaleString()}.00
             </div>
             <p className="text-xs text-gray-500 mt-1">Due Dec 15, 2024</p>
           </CardContent>
@@ -279,7 +292,7 @@ export default function PayrollPage() {
                 />
               </div>
               <div className="text-sm text-gray-500">
-                Current balance: ${contractBalance.toLocaleString()}.00 USDC
+                Current balance: ${contractBalance}.00 USDC
               </div>
             </div>
             <DialogFooter>
@@ -308,7 +321,7 @@ export default function PayrollPage() {
                 This will process payroll for all active employees.
               </DialogDescription>
             </DialogHeader>
-            <div className="py-4">
+            {/* <div className="py-4">
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Employees to pay:</span>
@@ -337,7 +350,7 @@ export default function PayrollPage() {
                   processed on Arc Network.
                 </p>
               </div>
-            </div>
+            </div> */}
             <DialogFooter>
               <Button
                 variant="outline"
