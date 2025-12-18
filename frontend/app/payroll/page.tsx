@@ -23,22 +23,28 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Wallet, Send, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
-import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { useReadContract, useWriteContract } from "wagmi";
 import formatBalance from "@/utils/utils";
 import USDCABI from "../../lib/abi/USDC.json";
 import PayrollContractABi from "../../lib/abi/PayrollManager.json";
 import EmployeeRegistryABI from "../../lib/abi/EmployeeRegistry.json";
 
+import { usePrivy } from "@privy-io/react-auth";
+
 const EMPLOYEE_REGISTRY_ADDRESS =
   "0xf23147Df55089eA6bA87BF24bb4eEE6f7Cea182b" as const;
 const PAYROLL_REGISTRY_ADDRESS =
   "0x03A71968491d55603FFe1b11A9e23eF013f75bCF" as const;
+
 const ARC_USDC_ADDR = "0x3600000000000000000000000000000000000000" as const;
 
 export default function PayrollPage() {
-  const { address } = useAccount();
   const [depositAmount, setDepositAmount] = useState("");
   const [step, setStep] = useState<"closed" | "approve" | "deposit">("closed");
+
+  const { user } = usePrivy();
+
+  const address = user?.wallet?.address;
 
   /* ==================== READ CONTRACTS ==================== */
 
@@ -48,9 +54,8 @@ export default function PayrollPage() {
     abi: USDCABI,
     functionName: "balanceOf",
     args: [address as `0x${string}`],
-    query: {
-      enabled: !!address,
-    },
+    chainId: 5042002,
+    query: { enabled: !!address },
   });
 
   // Contract's USDC balance
@@ -71,7 +76,7 @@ export default function PayrollPage() {
   const { data: monthlyPayrollCost } = useReadContract({
     address: EMPLOYEE_REGISTRY_ADDRESS,
     abi: EmployeeRegistryABI.abi,
-    functionName: "getTotalMonthlyCost", // ← Fixed from "monthlyPayrollCost"
+    functionName: "getTotalMonthlyCost",
   });
 
   // Active employees count
@@ -144,7 +149,6 @@ export default function PayrollPage() {
 
   /* ==================== HANDLERS ==================== */
 
-  // Step 1: Approve USDC spending
   const handleApproval = () => {
     if (!depositAmount || Number(depositAmount) <= 0) {
       return alert("Please input amount");
@@ -162,7 +166,6 @@ export default function PayrollPage() {
     setStep("deposit");
   };
 
-  // Step 2: Deposit to contract - FIXED ARGS
   const handleDeposit = () => {
     if (!depositAmount || Number(depositAmount) <= 0) {
       return alert("Please input amount");
@@ -295,8 +298,8 @@ export default function PayrollPage() {
               className="gap-2"
               onClick={() => setStep("approve")}
             >
-              <Wallet className="h-4 w-4" />
-              Deposit USDC
+              <Wallet className="h-4 w-4 text-black" />
+              <span className="text-black">Deposit USDC</span>
             </Button>
           </DialogTrigger>
 
