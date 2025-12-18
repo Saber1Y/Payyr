@@ -10,35 +10,37 @@ import {
 } from "lucide-react";
 import { useReadContract } from "wagmi";
 import { formatUnits } from "viem";
+import formatBalance from "@/utils/utils";
 import PayrollContractABi from "../../lib/abi/PayrollManager.json";
 
-const CONTRACT_ADDRESS = "0x03A71968491d55603FFe1b11A9e23eF013f75bCF" as const;
+const PAYROLL_REGISTRY_ADDRESS =
+  "0x03A71968491d55603FFe1b11A9e23eF013f75bCF" as const;
 
 export default function DashboardPage() {
   // Get contract balance
-  const { data: balance } = useReadContract({
-    address: CONTRACT_ADDRESS,
+  const { data: contractBalance } = useReadContract({
+    address: PAYROLL_REGISTRY_ADDRESS,
     abi: PayrollContractABi.abi,
     functionName: "getBalance",
   });
 
   // Get current payroll ID
   const { data: currentPayrollId } = useReadContract({
-    address: CONTRACT_ADDRESS,
+    address: PAYROLL_REGISTRY_ADDRESS,
     abi: PayrollContractABi.abi,
     functionName: "currentPayrollId",
   });
 
   // Get total payroll runs
   const { data: totalPayrollRuns } = useReadContract({
-    address: CONTRACT_ADDRESS,
+    address: PAYROLL_REGISTRY_ADDRESS,
     abi: PayrollContractABi.abi,
     functionName: "totalPayrollRuns",
   });
 
   // Get the last 3 payroll runs
   const { data: payroll1 } = useReadContract({
-    address: CONTRACT_ADDRESS,
+    address: PAYROLL_REGISTRY_ADDRESS,
     abi: PayrollContractABi.abi,
     functionName: "payrollRuns",
     args: [currentPayrollId as bigint],
@@ -48,7 +50,7 @@ export default function DashboardPage() {
   });
 
   const { data: payroll2 } = useReadContract({
-    address: CONTRACT_ADDRESS,
+    address: PAYROLL_REGISTRY_ADDRESS,
     abi: PayrollContractABi.abi,
     functionName: "payrollRuns",
     args: [currentPayrollId ? (currentPayrollId as bigint) - 1n : 0n],
@@ -58,7 +60,7 @@ export default function DashboardPage() {
   });
 
   const { data: payroll3 } = useReadContract({
-    address: CONTRACT_ADDRESS,
+    address: PAYROLL_REGISTRY_ADDRESS,
     abi: PayrollContractABi.abi,
     functionName: "payrollRuns",
     args: [currentPayrollId ? (currentPayrollId as bigint) - 2n : 0n],
@@ -67,13 +69,7 @@ export default function DashboardPage() {
     },
   });
 
-  // Format balance (USDC has 6 decimals)
-  const formattedBalance = balance
-    ? `$${Number(formatUnits(balance, 6)).toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}`
-    : "Loading...";
+  const formattedContractBalance = formatBalance(contractBalance);
 
   // Helper to format payroll data
   const formatPayroll = (payroll: any) => {
@@ -114,7 +110,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-gray-900">
-              {formattedBalance}
+              {formattedContractBalance}
             </div>
             <p className="text-xs text-gray-500 mt-1">Available for payroll</p>
           </CardContent>
@@ -273,7 +269,9 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between">
                 <span className="text-gray-600">Funds Available</span>
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  {balance && balance > 0n ? "Sufficient" : "Low"}
+                  {contractBalance && contractBalance > 0n
+                    ? "Sufficient"
+                    : "Low"}
                 </span>
               </div>
             </div>
