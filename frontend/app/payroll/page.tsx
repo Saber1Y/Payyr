@@ -22,81 +22,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Wallet,
-  Send,
-  AlertCircle,
-  CheckCircle,
-  ExternalLink,
-} from "lucide-react";
-
-import { useConnection, useReadContract, useWriteContract } from "wagmi";
-// import { useBalance } from "wagmi";
+import { Wallet, Send, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
+import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import formatBalance from "@/utils/utils";
 import USDCABI from "../../lib/abi/USDC.json";
-
-//abi imports
 import PayrollContractABi from "../../lib/abi/PayrollManager.json";
 import EmployeeRegistryABI from "../../lib/abi/EmployeeRegistry.json";
 
 const EMPLOYEE_REGISTRY_ADDRESS =
   "0xf23147Df55089eA6bA87BF24bb4eEE6f7Cea182b" as const;
-
 const PAYROLL_REGISTRY_ADDRESS =
   "0x03A71968491d55603FFe1b11A9e23eF013f75bCF" as const;
-
 const ARC_USDC_ADDR = "0x3600000000000000000000000000000000000000" as const;
 
-interface PayrollHistory {
-  id: string;
-  date: string;
-  employeesPaid: number;
-  totalAmount: number;
-  transactionHash: string;
-  status: string;
-}
-
-const mockPayrollHistory: PayrollHistory[] = [
-  {
-    id: "1",
-    date: "Nov 15, 2024",
-    employeesPaid: 24,
-    totalAmount: 85200,
-    transactionHash: "0xabc123...def789",
-    status: "Completed",
-  },
-  {
-    id: "2",
-    date: "Oct 15, 2024",
-    employeesPaid: 23,
-    totalAmount: 81150,
-    transactionHash: "0x456ghi...jkl012",
-    status: "Completed",
-  },
-  {
-    id: "3",
-    date: "Sep 15, 2024",
-    employeesPaid: 22,
-    totalAmount: 77800,
-    transactionHash: "0x789mno...pqr345",
-    status: "Completed",
-  },
-];
-
 export default function PayrollPage() {
-  const [isDepositDialogOpen, setIsDepositDialogOpen] = useState(false);
-  const [isPayAllDialogOpen, setIsPayAllDialogOpen] = useState(false);
+  const { address } = useAccount();
   const [depositAmount, setDepositAmount] = useState("");
   const [step, setStep] = useState<"closed" | "approve" | "deposit">("closed");
-  const [payrollHistory] = useState<PayrollHistory[]>(mockPayrollHistory);
 
-  const { address } = useConnection();
+  /* ==================== READ CONTRACTS ==================== */
 
-  // const balance = useBalance({
-  //   address: address,
-  //   // token: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
-  // });
-
+  // User's USDC balance
   const { data: userBalance } = useReadContract({
     address: ARC_USDC_ADDR,
     abi: USDCABI,
@@ -107,40 +53,42 @@ export default function PayrollPage() {
     },
   });
 
+  // Contract's USDC balance
   const { data: contractBalance } = useReadContract({
     address: PAYROLL_REGISTRY_ADDRESS,
     abi: PayrollContractABi.abi,
     functionName: "getBalance",
-    // args: [ARC_USDC_ADDR],
   });
 
+  // Current payroll ID
   const { data: currentPayrollId } = useReadContract({
     address: PAYROLL_REGISTRY_ADDRESS,
     abi: PayrollContractABi.abi,
     functionName: "currentPayrollId",
   });
 
+  // Total monthly cost - FIXED FUNCTION NAME
   const { data: monthlyPayrollCost } = useReadContract({
     address: EMPLOYEE_REGISTRY_ADDRESS,
     abi: EmployeeRegistryABI.abi,
-    functionName: "monthlyPayrollCost",
+    functionName: "getTotalMonthlyCost", // ← Fixed from "monthlyPayrollCost"
   });
 
+  // Active employees count
   const { data: activeEmployees } = useReadContract({
     address: EMPLOYEE_REGISTRY_ADDRESS,
     abi: EmployeeRegistryABI.abi,
     functionName: "activeEmployees",
   });
 
-  //fetch latest payroll run history
-
+  // Fetch last 3 payroll runs
   const { data: payrollHistory1 } = useReadContract({
     address: PAYROLL_REGISTRY_ADDRESS,
     abi: PayrollContractABi.abi,
     functionName: "payrollRuns",
     args: [currentPayrollId as bigint],
     query: {
-      enabled: !!currentPayrollId, // conditions
+      enabled: !!currentPayrollId && Number(currentPayrollId) > 0,
     },
   });
 
@@ -148,9 +96,7 @@ export default function PayrollPage() {
     address: PAYROLL_REGISTRY_ADDRESS,
     abi: PayrollContractABi.abi,
     functionName: "payrollRuns",
-    args: [
-      currentPayrollId ? (currentPayrollId as bigint) - BigInt(1) : BigInt(0),
-    ],
+    args: [currentPayrollId ? (currentPayrollId as bigint) - 1n : 0n],
     query: {
       enabled: !!currentPayrollId && Number(currentPayrollId) > 1,
     },
@@ -160,17 +106,17 @@ export default function PayrollPage() {
     address: PAYROLL_REGISTRY_ADDRESS,
     abi: PayrollContractABi.abi,
     functionName: "payrollRuns",
-    args: [
-      currentPayrollId ? (currentPayrollId as bigint) - BigInt(2) : BigInt(0),
-    ],
+    args: [currentPayrollId ? (currentPayrollId as bigint) - 2n : 0n],
     query: {
       enabled: !!currentPayrollId && Number(currentPayrollId) > 2,
     },
   });
 
-  // write hooks
+  /* ==================== WRITE CONTRACT ==================== */
 
-  const { mutate: grantApproval, isPending } = useWriteContract();
+  const { mutate: writeContract, isPending } = useWriteContract();
+
+  /* ==================== FORMAT DATA ==================== */
 
   const formatPayrollData = (data: any) => {
     if (!data) return null;
@@ -183,13 +129,12 @@ export default function PayrollPage() {
     };
   };
 
-  // const contractBalance = 125430;
-  // const requiredForNextPayroll = 85200;
-  const formatedMonthlyBalance = formatBalance(monthlyPayrollCost);
-  const formatedUserBalance = formatBalance(userBalance);
-  const formatedContractBalance = formatBalance(contractBalance);
+  const formattedMonthlyBalance = formatBalance(monthlyPayrollCost);
+  const formattedUserBalance = formatBalance(userBalance);
+  const formattedContractBalance = formatBalance(contractBalance);
 
-  const hasSufficientFunds = formatedContractBalance >= formatedMonthlyBalance;
+  const hasSufficientFunds =
+    formattedContractBalance >= formattedMonthlyBalance;
 
   const history = [
     formatPayrollData(payrollHistory1),
@@ -197,15 +142,17 @@ export default function PayrollPage() {
     formatPayrollData(payrollHistory3),
   ].filter(Boolean);
 
-  //grant permission to the payroll contract to spend USDC on behalf of the user
+  /* ==================== HANDLERS ==================== */
+
+  // Step 1: Approve USDC spending
   const handleApproval = () => {
     if (!depositAmount || Number(depositAmount) <= 0) {
-      return alert("Please input Amount");
+      return alert("Please input amount");
     }
 
     const parsedAmount = parseInt(depositAmount, 10);
 
-    grantApproval({
+    writeContract({
       address: ARC_USDC_ADDR,
       abi: USDCABI,
       functionName: "approve",
@@ -215,81 +162,108 @@ export default function PayrollPage() {
     setStep("deposit");
   };
 
+  // Step 2: Deposit to contract - FIXED ARGS
   const handleDeposit = () => {
     if (!depositAmount || Number(depositAmount) <= 0) {
-      return alert("Please input Amount");
+      return alert("Please input amount");
     }
 
     const parsedAmount = parseInt(depositAmount, 10);
 
-    grantApproval({
+    writeContract({
       address: PAYROLL_REGISTRY_ADDRESS,
       abi: PayrollContractABi.abi,
       functionName: "depositPayroll",
-      args: [parsedAmount],
+      args: [BigInt(parsedAmount * 1_000_000)], // ← FIXED: Convert to smallest units
     });
 
-    console.log("Depositing:", depositAmount);
     setStep("closed");
-    setIsDepositDialogOpen(false);
     setDepositAmount("");
   };
 
+  // Execute payroll
   const handlePayAll = () => {
-    grantApproval({
+    writeContract({
       address: PAYROLL_REGISTRY_ADDRESS,
       abi: PayrollContractABi.abi,
       functionName: "executePayroll",
     });
-    console.log("Processing payroll for all employees");
-    setIsPayAllDialogOpen(false);
   };
 
   return (
-    <div className="p-8 bg-[#114277] h-screen">
+    <div className="p-8 bg-[#114277] min-h-screen">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Payroll</h1>
-        <p className="text-gray-600 mt-2">
+        <h1 className="text-3xl font-bold text-white">Payroll</h1>
+        <p className="text-gray-300 mt-2">
           Manage deposits and payroll payments on Arc Network
         </p>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
-              Contract USDC Balance
+              Your USDC
             </CardTitle>
             <Wallet className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-gray-900">
-              ${formatedContractBalance.toLocaleString()}.00
+              $
+              {formattedUserBalance.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
             </div>
-            <p className="text-xs text-gray-500 mt-1">Available for payroll</p>
+            <p className="text-xs text-gray-500 mt-1">In your wallet</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
-              Your USDC Balance
+              Contract Balance
+            </CardTitle>
+            <Wallet className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-gray-900">
+              $
+              {formattedContractBalance.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Available</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">
+              Monthly Cost
             </CardTitle>
             <Send className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-gray-900">
-              ${formatedUserBalance.toLocaleString()}.00
+              $
+              {formattedMonthlyBalance.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
             </div>
-            <p className="text-xs text-gray-500 mt-1">Due Dec 15, 2024</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {activeEmployees?.toString() ?? "0"} employees
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
-              Funds Status
+              Status
             </CardTitle>
             {hasSufficientFunds ? (
               <CheckCircle className="h-4 w-4 text-green-600" />
@@ -303,23 +277,18 @@ export default function PayrollPage() {
                 hasSufficientFunds ? "text-green-600" : "text-red-600"
               }`}
             >
-              {hasSufficientFunds ? "Ready" : "Insufficient"}
+              {hasSufficientFunds ? "Ready" : "Low Funds"}
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              {hasSufficientFunds
-                ? "Sufficient funds available"
-                : "Additional funds needed"}
+              {hasSufficientFunds ? "Can pay all" : "Need more USDC"}
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Action Buttons */}
+      {/* Action Buttons with Two-Step Dialog */}
       <div className="flex gap-4 mb-8">
-        <Dialog
-          open={isDepositDialogOpen}
-          onOpenChange={setIsDepositDialogOpen}
-        >
+        <Dialog open={step !== "closed"} onOpenChange={() => setStep("closed")}>
           <DialogTrigger asChild>
             <Button
               variant="outline"
@@ -330,139 +299,171 @@ export default function PayrollPage() {
               Deposit USDC
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Deposit USDC</DialogTitle>
-              <DialogDescription>
-                Add funds to your payroll contract on Arc Network.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="amount">Amount (USDC)</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  value={depositAmount}
-                  onChange={(e) => setDepositAmount(e.target.value)}
-                  placeholder="10000"
-                />
+
+          {/* Step 1: Approval */}
+          {step === "approve" && (
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Step 1: Approve USDC</DialogTitle>
+                <DialogDescription>
+                  Allow the payroll contract to spend your USDC.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="amount">Amount (USDC)</Label>
+                  <Input
+                    id="amount"
+                    type="number"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                    placeholder="10000"
+                  />
+                </div>
+                <div className="text-sm space-y-1">
+                  <div className="text-gray-600">
+                    Your balance: ${formattedUserBalance.toLocaleString()}
+                  </div>
+                  <div className="text-gray-600">
+                    Contract balance: $
+                    {formattedContractBalance.toLocaleString()}
+                  </div>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-sm text-blue-800">
+                    💡 ERC20 tokens require approval before transfer for
+                    security.
+                  </p>
+                </div>
               </div>
-              <div className="text-sm text-gray-500">
-                Current balance: ${contractBalance}.00 USDC
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setStep("closed")}>
+                  Cancel
+                </Button>
+                <Button onClick={handleApproval} disabled={isPending}>
+                  {isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Approving...
+                    </>
+                  ) : (
+                    "Approve USDC"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          )}
+
+          {/* Step 2: Deposit */}
+          {step === "deposit" && (
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Step 2: Deposit</DialogTitle>
+                <DialogDescription>
+                  Complete the deposit to the payroll contract.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-sm text-green-800">
+                    ✓ USDC approved! Click below to deposit.
+                  </p>
+                </div>
+                <div className="text-sm">
+                  Depositing:{" "}
+                  <span className="font-bold text-lg">
+                    ${Number(depositAmount).toLocaleString()} USDC
+                  </span>
+                </div>
               </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setIsDepositDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button onClick={handleDeposit}>Deposit Funds</Button>
-            </DialogFooter>
-          </DialogContent>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setStep("closed")}>
+                  Cancel
+                </Button>
+                <Button onClick={handleDeposit} disabled={isPending}>
+                  {isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Depositing...
+                    </>
+                  ) : (
+                    "Confirm Deposit"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          )}
         </Dialog>
 
-        <Dialog open={isPayAllDialogOpen} onOpenChange={setIsPayAllDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2" disabled={!hasSufficientFunds}>
+        <Button
+          className="gap-2"
+          disabled={!hasSufficientFunds || isPending}
+          onClick={handlePayAll}
+        >
+          {isPending ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            <>
               <Send className="h-4 w-4" />
               Pay All Employees
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Confirm Payroll Payment</DialogTitle>
-              <DialogDescription>
-                This will process payroll for all active employees.
-              </DialogDescription>
-            </DialogHeader>
-            {/* <div className="py-4">
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Employees to pay:</span>
-                  <span className="font-semibold">24</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Total amount:</span>
-                  <span className="font-semibold">
-                    ${requiredForNextPayroll.toLocaleString()}.00 USDC
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Remaining balance:</span>
-                  <span className="font-semibold">
-                    $
-                    {(
-                      contractBalance - requiredForNextPayroll
-                    ).toLocaleString()}
-                    .00 USDC
-                  </span>
-                </div>
-              </div>
-              <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                <p className="text-sm text-yellow-800">
-                  ⚠️ This action cannot be undone. All payments will be
-                  processed on Arc Network.
-                </p>
-              </div>
-            </div> */}
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setIsPayAllDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button onClick={handlePayAll}>Confirm Payment</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </>
+          )}
+        </Button>
       </div>
 
-      {/* Payroll History */}
-      <Card className="text-black">
+      {/* Payroll History - FIXED TO USE BLOCKCHAIN DATA */}
+      <Card>
         <CardHeader>
           <CardTitle>Payroll History</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Employees Paid</TableHead>
-                <TableHead>Total Amount</TableHead>
-                <TableHead>Transaction Hash</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {payrollHistory.map((record) => (
-                <TableRow key={record.id}>
-                  <TableCell className="font-medium">{record.date}</TableCell>
-                  <TableCell>{record.employeesPaid}</TableCell>
-                  <TableCell>
-                    ${record.totalAmount.toLocaleString()}.00
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {record.transactionHash}
-                  </TableCell>
-                  <TableCell>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      {record.status}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm">
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
+          {history.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              No payroll history yet. Execute your first payroll.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Run #</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Employees</TableHead>
+                  <TableHead>Total Amount</TableHead>
+                  <TableHead>Status</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {history.map((record) => (
+                  <TableRow key={record.id}>
+                    <TableCell className="font-medium">#{record.id}</TableCell>
+                    <TableCell>
+                      {record.date.toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </TableCell>
+                    <TableCell>{record.employees}</TableCell>
+                    <TableCell>
+                      $
+                      {record.amount.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </TableCell>
+                    <TableCell>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        {record.completed ? "Completed" : "Pending"}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>
