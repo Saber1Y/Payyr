@@ -132,9 +132,9 @@ export default function PayrollPage() {
     functionName: "activeEmployees",
   });
 
-  //fetch latest payroll run history 
+  //fetch latest payroll run history
 
-  const {data: payrollHistory1 } = useReadContract({
+  const { data: payrollHistory1 } = useReadContract({
     address: PAYROLL_REGISTRY_ADDRESS,
     abi: PayrollContractABi.abi,
     functionName: "payrollRuns",
@@ -144,9 +144,44 @@ export default function PayrollPage() {
     },
   });
 
+  const { data: payrollHistory2 } = useReadContract({
+    address: PAYROLL_REGISTRY_ADDRESS,
+    abi: PayrollContractABi.abi,
+    functionName: "payrollRuns",
+    args: [
+      currentPayrollId ? (currentPayrollId as bigint) - BigInt(1) : BigInt(0),
+    ],
+    query: {
+      enabled: !!currentPayrollId && Number(currentPayrollId) > 1,
+    },
+  });
+
+  const { data: payrollHistory3 } = useReadContract({
+    address: PAYROLL_REGISTRY_ADDRESS,
+    abi: PayrollContractABi.abi,
+    functionName: "payrollRuns",
+    args: [
+      currentPayrollId ? (currentPayrollId as bigint) - BigInt(2) : BigInt(0),
+    ],
+    query: {
+      enabled: !!currentPayrollId && Number(currentPayrollId) > 2,
+    },
+  });
+
   // write hooks
 
   const { mutate: grantApproval, isPending } = useWriteContract();
+
+  const formatPayrollData = (data: any) => {
+    if (!data) return null;
+    return {
+      id: Number(data.id),
+      date: new Date(Number(data.timestamp) * 1000),
+      amount: formatBalance(data.totalAmount),
+      employees: Number(data.employeeCount),
+      completed: data.isCompleted,
+    };
+  };
 
   // const contractBalance = 125430;
   // const requiredForNextPayroll = 85200;
@@ -155,6 +190,12 @@ export default function PayrollPage() {
   const formatedContractBalance = formatBalance(contractBalance);
 
   const hasSufficientFunds = formatedContractBalance >= formatedMonthlyBalance;
+
+  const history = [
+    formatPayrollData(payrollHistory1),
+    formatPayrollData(payrollHistory2),
+    formatPayrollData(payrollHistory3),
+  ].filter(Boolean);
 
   //grant permission to the payroll contract to spend USDC on behalf of the user
   const handleApproval = () => {
@@ -280,7 +321,11 @@ export default function PayrollPage() {
           onOpenChange={setIsDepositDialogOpen}
         >
           <DialogTrigger asChild>
-            <Button variant="outline" className="gap-2" onClick={() => setStep("approve")}>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => setStep("approve")}
+            >
               <Wallet className="h-4 w-4" />
               Deposit USDC
             </Button>
