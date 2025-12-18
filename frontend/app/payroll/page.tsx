@@ -132,6 +132,18 @@ export default function PayrollPage() {
     functionName: "activeEmployees",
   });
 
+  //fetch latest payroll run history 
+
+  const {data: payrollHistory1 } = useReadContract({
+    address: PAYROLL_REGISTRY_ADDRESS,
+    abi: PayrollContractABi.abi,
+    functionName: "payrollRuns",
+    args: [currentPayrollId as bigint],
+    query: {
+      enabled: !!currentPayrollId, // conditions
+    },
+  });
+
   // write hooks
 
   const { mutate: grantApproval, isPending } = useWriteContract();
@@ -268,7 +280,7 @@ export default function PayrollPage() {
           onOpenChange={setIsDepositDialogOpen}
         >
           <DialogTrigger asChild>
-            <Button variant="outline" className="gap-2">
+            <Button variant="outline" className="gap-2" onClick={() => setStep("approve")}>
               <Wallet className="h-4 w-4" />
               Deposit USDC
             </Button>
