@@ -42,7 +42,7 @@ export default function PayrollPage() {
   const [depositAmount, setDepositAmount] = useState("");
   const [step, setStep] = useState<"closed" | "approve" | "deposit">("closed");
 
-  const { user } = usePrivy();
+  const { user, ready, authenticated } = usePrivy();
 
   const address = user?.wallet?.address;
 
@@ -147,6 +147,11 @@ export default function PayrollPage() {
     formatPayrollData(payrollHistory3),
   ].filter(Boolean);
 
+
+  if (!authenticated) {
+    return <div>Please Login to check balance</div>;
+  }
+
   /* ==================== HANDLERS ==================== */
 
   const handleApproval = () => {
@@ -214,10 +219,12 @@ export default function PayrollPage() {
           <CardContent>
             <div className="text-2xl font-bold text-gray-900">
               $
-              {formattedUserBalance.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
+              {ready
+                ? formattedUserBalance.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })
+                : "0.00"}
             </div>
             <p className="text-xs text-gray-500 mt-1">In your wallet</p>
           </CardContent>
@@ -232,7 +239,7 @@ export default function PayrollPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-gray-900">
-              $
+              ${}
               {formattedContractBalance.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,

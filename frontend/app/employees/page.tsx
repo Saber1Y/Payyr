@@ -53,8 +53,6 @@ export default function EmployeesPage() {
     role: "",
   });
 
-
-
   // Read calls
   const { data: totalEmployees } = useReadContract({
     address: EMPLOYEE_REGISTRY_ADDRESS,
@@ -132,7 +130,7 @@ export default function EmployeesPage() {
     }
   }, [isAddSuccess]);
 
-  useEffect(() => {
+  useEffect(() => { 
     if (isUpdateSuccess) {
       // setIsEditDialogOpen(false);
       resetForm();
@@ -273,14 +271,16 @@ export default function EmployeesPage() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Add New Employee</DialogTitle>
-              <DialogDescription>
+              <DialogTitle className="text-black">Add New Employee</DialogTitle>
+              <DialogDescription className="text-black">
                 Add a new employee to your payroll system on-chain.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="name" className="text-black">
+                  Full Name
+                </Label>
                 <Input
                   id="name"
                   value={formData.name}
@@ -291,10 +291,13 @@ export default function EmployeesPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="address">Wallet Address</Label>
+                <Label htmlFor="address" className="text-black">
+                  Wallet Address
+                </Label>
                 <Input
                   id="address"
                   value={formData.walletAddress}
+                  className="text-black"
                   onChange={(e) =>
                     setFormData({ ...formData, walletAddress: e.target.value })
                   }
@@ -302,7 +305,9 @@ export default function EmployeesPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="role">Role/Position</Label>
+                <Label htmlFor="role" className="text-black">
+                  Role/Position
+                </Label>
                 <Input
                   id="role"
                   value={formData.role}
@@ -313,11 +318,14 @@ export default function EmployeesPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="salary">Monthly Salary (USDC)</Label>
+                <Label htmlFor="salary" className="text-black">
+                  Monthly Salary (USDC)
+                </Label>
                 <Input
                   id="salary"
                   type="number"
                   value={formData.salary}
+                  className="text-black"
                   onChange={(e) =>
                     setFormData({ ...formData, salary: e.target.value })
                   }
@@ -329,6 +337,7 @@ export default function EmployeesPage() {
               <Button
                 variant="outline"
                 onClick={() => setIsAddDialogOpen(false)}
+                className="text-black"
               >
                 Cancel
               </Button>
