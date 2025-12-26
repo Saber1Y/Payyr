@@ -25,24 +25,30 @@ import {
 import { Plus, Edit, UserX, UserCheck, Loader2 } from "lucide-react";
 import {
   useReadContract,
+  useReadContracts,
   useWriteContract,
   useWaitForTransactionReceipt,
 } from "wagmi";
 import { formatUnits, parseUnits } from "viem";
 import EmployeeRegistryABI from "../../lib/abi/EmployeeRegistry.json";
+import { useQueryClient } from "@tanstack/react-query";
 
 const EMPLOYEE_REGISTRY_ADDRESS =
   "0xf23147Df55089eA6bA87BF24bb4eEE6f7Cea182b" as const;
 
+
+
+// Type for formatted employee data
 interface EmployeeData {
   address: string;
   name: string;
-  salary: bigint;
+  salary: string;
   isActive: boolean;
   role: string;
 }
 
 export default function EmployeesPage() {
+  const queryClient = useQueryClient();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
@@ -53,7 +59,9 @@ export default function EmployeesPage() {
     role: "",
   });
 
-  // Read calls
+  /* ==================== READ CONTRACTS ==================== */
+
+  // Get counts
   const { data: totalEmployees } = useReadContract({
     address: EMPLOYEE_REGISTRY_ADDRESS,
     abi: EmployeeRegistryABI.abi,
@@ -66,51 +74,106 @@ export default function EmployeesPage() {
     functionName: "activeEmployees",
   });
 
+  console.log("📊 Employee Counts:");
+  console.log("totalEmployees:", totalEmployees?.toString());
+  console.log("activeEmployees:", activeEmployees?.toString());
+
+  // Get list of addresses
   const { data: employeeAddresses } = useReadContract({
     address: EMPLOYEE_REGISTRY_ADDRESS,
     abi: EmployeeRegistryABI.abi,
     functionName: "getActiveEmployees",
   });
 
-  // Write contracts
+  // 🔍 STEP 1: Log the addresses we got
+  console.log("=== STEP 1: Employee Addresses ===");
+  console.log("Raw employeeAddresses:", employeeAddresses);
+  console.log("Number of addresses:", employeeAddresses?.length ?? 0);
 
-  const {
-    mutate: addEmployee,
-    data: addHash,
-    isPending: isAddPending,
-  } = useWriteContract();
+  // BATCH FETCH: Create array of calls for each employee
+  const employeeCalls =
+    (employeeAddresses as string[] | undefined)?.map((addr) => ({
+      address: EMPLOYEE_REGISTRY_ADDRESS,
+      abi: EmployeeRegistryABI.abi,
+      functionName: "employees",
+      args: [addr],
+    })) || [];
 
-  const {
-    mutate: updateEmployee,
-    data: updateHash,
-    isPending: isUpdatePending,
-  } = useWriteContract();
+  // 🔍 STEP 2: Log what calls we're making
+  console.log("=== STEP 2: Contract Calls ===");
+  console.log("Number of calls:", employeeCalls.length);
+  console.log("Call details:", employeeCalls);
 
-  const {
-    mutate: deactivateEmployee,
-    data: deactivateHash,
-    isPending: isDeactivatePending,
-  } = useWriteContract();
+  // Execute batch call to get all employee data at once
+  const { data: employeesResults, isLoading: isTableLoading } =
+    useReadContracts({
+      contracts: employeeCalls,
+    });
 
-  const {
-    mutate: activateEmployee,
-    data: activateHash,
-    isPending: isActivatePending,
-  } = useWriteContract();
+  // 🔍 STEP 3: Log the raw results from blockchain
+  console.log("=== STEP 3: Raw Results from Blockchain ===");
+  console.log("employeesResults:", employeesResults);
+  console.log("Is loading?", isTableLoading);
 
-  // Wait for transactions
-  const { isSuccess: isAddSuccess } = useWaitForTransactionReceipt({
-    hash: addHash,
-  });
-  const { isSuccess: isUpdateSuccess } = useWaitForTransactionReceipt({
-    hash: updateHash,
-  });
-  const { isSuccess: isDeactivateSuccess } = useWaitForTransactionReceipt({
-    hash: deactivateHash,
-  });
-  const { isSuccess: isActivateSuccess } = useWaitForTransactionReceipt({
-    hash: activateHash,
-  });
+  // FORMAT: Convert blockchain data to usable format
+  const tableData: EmployeeData[] =
+    employeesResults
+      ?.map((res, index) => {
+        // 🔍 STEP 4: Log each individual result as we process it
+        console.log(`=== Processing Employee ${index + 1} ===`);
+        console.log("Address:", employeeAddresses![index]);
+        console.log("Raw result:", res);
+        console.log("Has result?", !!res.result);
+
+        // Check if we got valid data
+        if (!res.result) {
+          console.log("❌ No result for this employee!");
+          return null;
+        }
+
+        // Destructure the struct returned from Solidity
+        // Solidity returns: (string name, uint256 salary, bool isActive, uint256 startDate, string role)
+        const [name, salary, isActive, startDate, role] = res.result as [
+          string,
+          bigint,
+          boolean,
+          bigint,
+          string
+        ];
+
+        console.log("✅ Parsed data:", {
+          name,
+          salary: salary.toString(),
+          isActive,
+          role,
+        });
+
+        return {
+          address: employeeAddresses![index],
+          name,
+          salary: formatUnits(salary, 6), // Convert to readable USDC
+          isActive,
+          role,
+        };
+      })
+      .filter((item): item is EmployeeData => item !== null) || [];
+
+  // 🔍 STEP 5: Log the final formatted data
+  console.log("=== STEP 5: Final Table Data ===");
+  console.log("tableData:", tableData);
+  console.log("Number of employees to display:", tableData.length);
+
+  /* ==================== WRITE CONTRACTS ==================== */
+
+  const { mutate: addEmployee, isPending: isAddPending } = useWriteContract();
+  const { mutate: updateEmployee, isPending: isUpdatePending } =
+    useWriteContract();
+  const { mutate: deactivateEmployee, isPending: isDeactivatePending } =
+    useWriteContract();
+  const { mutate: activateEmployee, isPending: isActivatePending } =
+    useWriteContract();
+
+  /* ==================== HANDLERS ==================== */
 
   const resetForm = () => {
     setFormData({
@@ -121,21 +184,6 @@ export default function EmployeesPage() {
     });
     setEditingEmployee(null);
   };
-
-  // Close dialogs on success
-  useEffect(() => {
-    if (isAddSuccess) {
-      // setIsAddDialogOpen(false);
-      resetForm();
-    }
-  }, [isAddSuccess]);
-
-  useEffect(() => { 
-    if (isUpdateSuccess) {
-      // setIsEditDialogOpen(false);
-      resetForm();
-    }
-  }, [isUpdateSuccess]);
 
   const handleAddEmployee = () => {
     if (
@@ -149,34 +197,45 @@ export default function EmployeesPage() {
     }
 
     try {
-      const salaryInSmallestUnit = parseUnits(formData.salary, 6); // USDC has 6 decimals
+      const salaryInSmallestUnit = parseUnits(formData.salary, 6);
 
-      addEmployee({
-        address: EMPLOYEE_REGISTRY_ADDRESS,
-        abi: EmployeeRegistryABI.abi,
-        functionName: "addEmployee",
-        args: [
-          formData.walletAddress as `0x${string}`,
-          formData.name,
-          salaryInSmallestUnit,
-          formData.role,
-        ],
-      });
+      addEmployee(
+        {
+          address: EMPLOYEE_REGISTRY_ADDRESS,
+          abi: EmployeeRegistryABI.abi,
+          functionName: "addEmployee",
+          args: [
+            formData.walletAddress as `0x${string}`,
+            formData.name,
+            salaryInSmallestUnit,
+            formData.role,
+          ],
+        },
+        {
+          onSuccess: () => {
+            setIsAddDialogOpen(false);
+            resetForm();
+            // Refetch employee list after adding
+            queryClient.invalidateQueries({ queryKey: ["readContract"] });
+          },
+        }
+      );
     } catch (error) {
       console.error("Error adding employee:", error);
       alert("Failed to add employee. Check console for details.");
     }
   };
 
-  const handleEditEmployee = async (employeeAddress: string) => {
-    // Fetch current employee data
-    const employee = await getEmployeeData(employeeAddress);
+  const handleEditEmployee = (employeeAddress: string) => {
+    // Find employee in our already-fetched data
+    const employee = tableData.find((e) => e.address === employeeAddress);
+
     if (employee) {
       setEditingEmployee(employeeAddress);
       setFormData({
         name: employee.name,
         walletAddress: employeeAddress,
-        salary: formatUnits(employee.salary, 6),
+        salary: employee.salary, // Already formatted from tableData
         role: employee.role,
       });
       setIsEditDialogOpen(true);
@@ -197,17 +256,26 @@ export default function EmployeesPage() {
     try {
       const salaryInSmallestUnit = parseUnits(formData.salary, 6);
 
-      updateEmployee({
-        address: EMPLOYEE_REGISTRY_ADDRESS,
-        abi: EmployeeRegistryABI.abi,
-        functionName: "updateEmployee",
-        args: [
-          editingEmployee as `0x${string}`,
-          formData.name,
-          salaryInSmallestUnit,
-          formData.role,
-        ],
-      });
+      updateEmployee(
+        {
+          address: EMPLOYEE_REGISTRY_ADDRESS,
+          abi: EmployeeRegistryABI.abi,
+          functionName: "updateEmployee",
+          args: [
+            editingEmployee as `0x${string}`,
+            formData.name,
+            salaryInSmallestUnit,
+            formData.role,
+          ],
+        },
+        {
+          onSuccess: () => {
+            setIsEditDialogOpen(false);
+            resetForm();
+            queryClient.invalidateQueries({ queryKey: ["readContract"] });
+          },
+        }
+      );
     } catch (error) {
       console.error("Error updating employee:", error);
       alert("Failed to update employee. Check console for details.");
@@ -216,36 +284,36 @@ export default function EmployeesPage() {
 
   const handleDeactivateEmployee = (employeeAddress: string) => {
     if (confirm("Are you sure you want to deactivate this employee?")) {
-      deactivateEmployee({
-        address: EMPLOYEE_REGISTRY_ADDRESS,
-        abi: EmployeeRegistryABI.abi,
-        functionName: "deactivateEmployee",
-        args: [employeeAddress as `0x${string}`],
-      });
+      deactivateEmployee(
+        {
+          address: EMPLOYEE_REGISTRY_ADDRESS,
+          abi: EmployeeRegistryABI.abi,
+          functionName: "deactivateEmployee",
+          args: [employeeAddress as `0x${string}`],
+        },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["readContract"] });
+          },
+        }
+      );
     }
   };
 
   const handleActivateEmployee = (employeeAddress: string) => {
-    activateEmployee({
-      address: EMPLOYEE_REGISTRY_ADDRESS,
-      abi: EmployeeRegistryABI.abi,
-      functionName: "activateEmployee",
-      args: [employeeAddress as `0x${string}`],
-    });
-  };
-
-  // Helper to get individual employee data
-  const getEmployeeData = async (
-    address: string
-  ): Promise<EmployeeData | null> => {
-    try {
-      // This would need to be done differently - you'd need to read each employee
-      // For now, we'll return null and rely on the table rendering
-      return null;
-    } catch (error) {
-      console.error("Error fetching employee:", error);
-      return null;
-    }
+    activateEmployee(
+      {
+        address: EMPLOYEE_REGISTRY_ADDRESS,
+        abi: EmployeeRegistryABI.abi,
+        functionName: "activateEmployee",
+        args: [employeeAddress as `0x${string}`],
+      },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ["readContract"] });
+        },
+      }
+    );
   };
 
   return (
@@ -271,16 +339,14 @@ export default function EmployeesPage() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle className="text-black">Add New Employee</DialogTitle>
-              <DialogDescription className="text-black">
+              <DialogTitle>Add New Employee</DialogTitle>
+              <DialogDescription>
                 Add a new employee to your payroll system on-chain.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="name" className="text-black">
-                  Full Name
-                </Label>
+                <Label htmlFor="name">Full Name</Label>
                 <Input
                   id="name"
                   value={formData.name}
@@ -291,13 +357,10 @@ export default function EmployeesPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="address" className="text-black">
-                  Wallet Address
-                </Label>
+                <Label htmlFor="address">Wallet Address</Label>
                 <Input
                   id="address"
                   value={formData.walletAddress}
-                  className="text-black"
                   onChange={(e) =>
                     setFormData({ ...formData, walletAddress: e.target.value })
                   }
@@ -305,9 +368,7 @@ export default function EmployeesPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="role" className="text-black">
-                  Role/Position
-                </Label>
+                <Label htmlFor="role">Role/Position</Label>
                 <Input
                   id="role"
                   value={formData.role}
@@ -318,14 +379,11 @@ export default function EmployeesPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="salary" className="text-black">
-                  Monthly Salary (USDC)
-                </Label>
+                <Label htmlFor="salary">Monthly Salary (USDC)</Label>
                 <Input
                   id="salary"
                   type="number"
                   value={formData.salary}
-                  className="text-black"
                   onChange={(e) =>
                     setFormData({ ...formData, salary: e.target.value })
                   }
@@ -337,7 +395,6 @@ export default function EmployeesPage() {
               <Button
                 variant="outline"
                 onClick={() => setIsAddDialogOpen(false)}
-                className="text-black"
               >
                 Cancel
               </Button>
@@ -361,12 +418,90 @@ export default function EmployeesPage() {
           <CardTitle>Employee List</CardTitle>
         </CardHeader>
         <CardContent>
-          <EmployeeTable
-            employeeAddresses={employeeAddresses as `0x${string}`[] | undefined}
-            onEdit={handleEditEmployee}
-            onDeactivate={handleDeactivateEmployee}
-            onActivate={handleActivateEmployee}
-          />
+          {isTableLoading ? (
+            <div className="text-center py-8 text-gray-500">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
+              Loading employees...
+            </div>
+          ) : tableData.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              No employees found. Add your first employee to get started.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Wallet Address</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Monthly Salary</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tableData.map((employee) => (
+                  <TableRow key={employee.address}>
+                    <TableCell className="font-medium">
+                      {employee.name}
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">
+                      {employee.address.slice(0, 6)}...
+                      {employee.address.slice(-4)}
+                    </TableCell>
+                    <TableCell>{employee.role}</TableCell>
+                    <TableCell>
+                      ${Number(employee.salary).toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          employee.isActive
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {employee.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditEmployee(employee.address)}
+                          disabled={!employee.isActive}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        {employee.isActive ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              handleDeactivateEmployee(employee.address)
+                            }
+                          >
+                            <UserX className="h-4 w-4 text-red-500" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              handleActivateEmployee(employee.address)
+                            }
+                          >
+                            <UserCheck className="h-4 w-4 text-green-500" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -433,143 +568,5 @@ export default function EmployeesPage() {
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-// Separate component for the employee table
-function EmployeeTable({
-  employeeAddresses,
-  onEdit,
-  onDeactivate,
-  onActivate,
-}: {
-  employeeAddresses: `0x${string}`[] | undefined;
-  onEdit: (address: string) => void;
-  onDeactivate: (address: string) => void;
-  onActivate: (address: string) => void;
-}) {
-  if (!employeeAddresses || employeeAddresses.length === 0) {
-    return (
-      <div className="text-center py-8 text-gray-500">
-        No employees found. Add your first employee to get started.
-      </div>
-    );
-  }
-
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Wallet Address</TableHead>
-          <TableHead>Role</TableHead>
-          <TableHead>Monthly Salary</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead className="text-right">Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {employeeAddresses.map((address) => (
-          <EmployeeRow
-            key={address}
-            address={address}
-            onEdit={onEdit}
-            onDeactivate={onDeactivate}
-            onActivate={onActivate}
-          />
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
-
-// Individual employee row component
-function EmployeeRow({
-  address,
-  onEdit,
-  onDeactivate,
-  onActivate,
-}: {
-  address: `0x${string}`;
-  onEdit: (address: string) => void;
-  onDeactivate: (address: string) => void;
-  onActivate: (address: string) => void;
-}) {
-  const { data: employeeData } = useReadContract({
-    address: EMPLOYEE_REGISTRY_ADDRESS,
-    abi: EmployeeRegistryABI,
-    functionName: "employees",
-    args: [address],
-  });
-
-  if (!employeeData) {
-    return (
-      <TableRow>
-        <TableCell colSpan={6} className="text-center">
-          Loading...
-        </TableCell>
-      </TableRow>
-    );
-  }
-
-  const [name, salary, isActive, startDate, role] = employeeData as [
-    string,
-    bigint,
-    boolean,
-    bigint,
-    string
-  ];
-
-  const formattedSalary = formatUnits(salary, 6);
-
-  return (
-    <TableRow>
-      <TableCell className="font-medium">{name}</TableCell>
-      <TableCell className="font-mono text-sm">
-        {address.slice(0, 6)}...{address.slice(-4)}
-      </TableCell>
-      <TableCell>{role}</TableCell>
-      <TableCell>${Number(formattedSalary).toLocaleString()}</TableCell>
-      <TableCell>
-        <span
-          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-            isActive
-              ? "bg-green-100 text-green-800"
-              : "bg-gray-100 text-gray-800"
-          }`}
-        >
-          {isActive ? "Active" : "Inactive"}
-        </span>
-      </TableCell>
-      <TableCell className="text-right">
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onEdit(address)}
-            disabled={!isActive}
-          >
-            <Edit className="h-4 w-4" />
-          </Button>
-          {isActive ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onDeactivate(address)}
-            >
-              <UserX className="h-4 w-4 text-red-500" />
-            </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onActivate(address)}
-            >
-              <UserCheck className="h-4 w-4 text-green-500" />
-            </Button>
-          )}
-        </div>
-      </TableCell>
-    </TableRow>
   );
 }
