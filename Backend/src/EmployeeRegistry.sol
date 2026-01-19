@@ -31,6 +31,9 @@ contract EmployeeRegistry is AccessControl {
     uint256 public totalEmployees;
     uint256 public activeEmployees;
     uint256 public totalEmployers;
+    uint256 public totalMonthlyPayroll;
+
+    
 
     event EmployeeAdded(address indexed employee, address indexed employer, string name, uint256 salary);
     event EmployeeUpdated(address indexed employee, string name, uint256 salary);
@@ -74,11 +77,13 @@ contract EmployeeRegistry is AccessControl {
         if (_employee == address(0)) {
             revert InvalidEmployeeAddress();
         }
-        if (bytes(_name).length < 0) {
+        //the length of bytes32 can never be unsigned since it is uint256
+        //did remove the other require cause both tend to do same thing
+        if (bytes(_name).length == 0) {
             revert NameCannotBeEmpty();
         }
-        require(bytes(_name).length > 0, "Name cannot be empty");
         require(_salary > 0, "Salary must be greater than 0");
+
         require(employees[_employee].startDate == 0, "Employee already exists");
 
         employees[_employee] = Employee({
@@ -91,6 +96,7 @@ contract EmployeeRegistry is AccessControl {
         });
 
         employeeAddresses.push(_employee);
+        totalMonthlyPayroll += _salary;
         totalEmployees++;
         activeEmployees++;
 
@@ -118,8 +124,14 @@ contract EmployeeRegistry is AccessControl {
         require(_salary > 0, "Salary must be greater than 0");
 
         employees[_employee].name = _name;
+
+        //update the global cost
+        totalMonthlyPayroll = (totalMonthlyPayroll - employees[_employee].salary)+_salary;
+
+
         employees[_employee].salary = _salary;
         employees[_employee].role = _role;
+
 
         emit EmployeeUpdated(_employee, _name, _salary);
     }
@@ -135,6 +147,8 @@ contract EmployeeRegistry is AccessControl {
         
         employees[_employee].isActive = false;
         activeEmployees--;
+        totalMonthlyPayroll -= employees[_employee].salary; // removed it from global cost
+
 
         emit EmployeeDeactivated(_employee);
     }
@@ -144,13 +158,15 @@ contract EmployeeRegistry is AccessControl {
      * @param _employee Employee address
      */
     function activateEmployee(address _employee) external onlyRole(HR_ROLE) {
-        require(employees[_employee].startDate != 0, "Employee does not exist");
-        require(employees[_employee].employer == msg.sender, "Not your employee");
-        require(!employees[_employee].isActive, "Employee already active");
+       Employee storage emp = employees[_employee];
+     
+        require(emp.startDate != 0, "Employee does not exist");
+        require(emp.employer == msg.sender, "Not your employee");
+        require(!emp.isActive, "Employee already active");
         
-        employees[_employee].isActive = true;
+        emp.isActive = true;
         activeEmployees++;
-
+totalMonthlyPayroll += emp.salary; // Add back to global cost
         emit EmployeeActivated(_employee);
     }
 
@@ -217,17 +233,10 @@ contract EmployeeRegistry is AccessControl {
      * @dev Get total monthly payroll cost
      * @return Total monthly salary for all active employees
      */
-    
+    //removed the loop and replaed it with this to save gas
     function getTotalMonthlyCost() external view returns (uint256) {
-        uint256 totalCost = 0;
-        
-        for (uint256 i = 0; i < employeeAddresses.length; i++) {
-            if (employees[employeeAddresses[i]].isActive) {
-                totalCost += employees[employeeAddresses[i]].salary;
-            }
-        }
-        
-        return totalCost;
+         
+        return totalMonthlyPayroll;
     }
 
     /**
